@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Игра "Хлопни комара!"</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: red;
+            font-weight: bold;
+            display: none;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="game-over">Игра окончена</div>
+
+    <script>
+        // Constants
+        const MAX_MOSQUITOES = 15;
+        const INITIAL_LIVES = 100;
+        const MOSQUITO_SIZE_RATIO = 20; // 1/20th of screen size
+        const DANGER_ZONE_HEIGHT_RATIO = 0.1; // 10% of screen height
+        
+        // Mosquito types
+        const MOSQUITO_TYPES = [
+            { health: 1, color: '#663300', wingColor: 'rgba(200, 200, 255, 0.7)', size: 1.0, isBomb: false },   // Regular mosquito
+            { health: 3, color: '#990000', wingColor: 'rgba(255, 200, 200, 0.7)', size: 1.2, isBomb: false },    // Red mosquito
+            { health: 4, color: '#000066', wingColor: 'rgba(200, 255, 200, 0.7)', size: 1.4, isBomb: false },    // Blue mosquito
+            { health: 2, color: '#000000', wingColor: 'rgba(255, 255, 0, 0.7)', size: 1.3, isBomb: true }       // Bomb mosquito (black with yellow wings)
+        ]
+        
+        // Explosion radius for bomb mosquito
+        const BOMB_RADIUS = 150; // pixels
+        
+        // Game state
+        let canvas, ctx;
+        let mosquitoes = [];
+        let score = 0;
+        let lives = INITIAL_LIVES;
+        let gameOver = false;
+        let lastLifeDecreaseTime = 0;
+        
+        // Audio contexts and buffers
+        let audioContext;
+        let midiPlayer;
+        let hitSound;
+        let lifeDecreaseSound;
+        
+        // Animation variables
+        let wingAngle = 0;
+        let wingDirection = 1;
+        
+        // Initialized when window loads
+        window.onload = function() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas to full screen
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Listen for mouse clicks
+            canvas.addEventListener('click', handleClick);
+            
+            // Add touch support for mobile devices
+            canvas.addEventListener('touchstart', handleTouch);
+            
+            // Initialize audio
+            initAudio();
+            
+            // Start game loop
+            requestAnimationFrame(gameLoop);
+        };
+        
+        // Handle touch events for mobile devices
+        function handleTouch(event) {
+            // Prevent default to avoid scrolling
+            event.preventDefault();
+            
+            // Convert touch to mouse-like event
+            if (event.touches.length > 0) {
+                const touch = event.touches[0];
+                const simulatedEvent = {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                };
+                handleClick(simulatedEvent);
+            }
+        }
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        function initAudio() {
+            // Initialize Web Audio API
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create hit sound (drum)
+            hitSound = audioContext.createOscillator();
+            hitSound.type = 'triangle';
+            hitSound.frequency.setValueAtTime(150, audioContext.currentTime);
+            
+            // Create life decrease sound (piano A note)
+            lifeDecreaseSound = audioContext.createOscillator();
+            lifeDecreaseSound.type = 'sine';
+            lifeDecreaseSound.frequency.setValueAtTime(440, audioContext.currentTime); // A4 note
+            
+            // Initialize MIDI player for background music (Flight of the Bumblebee)
+            playFlightOfBumblebee();
+        }
+        
+        function playFlightOfBumblebee() {
+            // This is a simplified implementation of Flight of the Bumblebee
+            // using Web Audio API oscillators to mimic MIDI
+            
+            const bpm = 180;
+            const noteDuration = 60 / bpm; // Duration of one beat in seconds
+            
+            // Create base oscillator for the melody
+            const oscillator = audioContext.createOscillator();
+            oscillator.type = 'sawtooth'; // Cello-like timbre
+            
+            // Create gain node for volume control
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = 0.1; // Keep it subtle
+            
+            // Connect nodes
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Flight of the Bumblebee main motif simplified
+            // This is a simplified pattern that will repeat
+            const playNote = (time, freq, duration) => {
+                oscillator.frequency.setValueAtTime(freq, time);
+                gainNode.gain.setValueAtTime(0.1, time);
+                gainNode.gain.setValueAtTime(0.1, time + duration - 0.01);
+                gainNode.gain.linearRampToValueAtTime(0, time + duration);
+            };
+            
+            // Main motif notes (simplified version of Flight of the Bumblebee)
+            const notes = [
+                { freq: 440, duration: noteDuration / 4 },  // A4
+                { freq: 466.16, duration: noteDuration / 4 }, // A#4/Bb4
+                { freq: 493.88, duration: noteDuration / 4 }, // B4
+                { freq: 523.25, duration: noteDuration / 4 }, // C5
+                { freq: 554.37, duration: noteDuration / 4 }, // C#5/Db5
+                { freq: 587.33, duration: noteDuration / 4 }, // D5
+                { freq: 554.37, duration: noteDuration / 4 }, // C#5/Db5
+                { freq: 523.25, duration: noteDuration / 4 }, // C5
+                { freq: 493.88, duration: noteDuration / 4 }, // B4
+                { freq: 466.16, duration: noteDuration / 4 }, // A#4/Bb4
+                { freq: 440, duration: noteDuration / 4 },    // A4
+                { freq: 415.30, duration: noteDuration / 4 }, // G#4/Ab4
+                { freq: 392, duration: noteDuration / 4 },    // G4
+                { freq: 415.30, duration: noteDuration / 4 }, // G#4/Ab4
+                { freq: 440, duration: noteDuration / 4 },    // A4
+                { freq: 466.16, duration: noteDuration / 4 }  // A#4/Bb4
+            ];
+            
+            // Schedule the notes to play in sequence and loop
+            let startTime = audioContext.currentTime;
+            let totalDuration = 0;
+            
+            function scheduleNotes() {
+                for (let i = 0; i < notes.length; i++) {
+                    playNote(startTime + totalDuration, notes[i].freq, notes[i].duration);
+                    totalDuration += notes[i].duration;
+                }
+                
+                // Schedule next iteration to create a continuous loop
+                setTimeout(scheduleNotes, (totalDuration * 1000) - 50);
+                startTime = audioContext.currentTime;
+                totalDuration = 0;
+            }
+            
+            // Start the oscillator and schedule the notes
+            oscillator.start();
+            scheduleNotes();
+        }
+        
+        function playHitSound() {
+            // Play drum sound when mosquito is hit
+            const drumOsc = audioContext.createOscillator();
+            drumOsc.type = 'triangle';
+            drumOsc.frequency.setValueAtTime(100, audioContext.currentTime);
+            
+            const drumGain = audioContext.createGain();
+            drumGain.gain.setValueAtTime(0.5, audioContext.currentTime);
+            drumGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            drumOsc.connect(drumGain);
+            drumGain.connect(audioContext.destination);
+            
+            drumOsc.start();
+            drumOsc.stop(audioContext.currentTime + 0.3);
+        }
+        
+        function playLifeDecreaseSound() {
+            // Play A note on piano when life decreases
+            const pianoOsc = audioContext.createOscillator();
+            pianoOsc.type = 'sine';
+            pianoOsc.frequency.setValueAtTime(440, audioContext.currentTime);
+            
+            const pianoGain = audioContext.createGain();
+            pianoGain.gain.setValueAtTime(0.2, audioContext.currentTime);
+            pianoGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            pianoOsc.connect(pianoGain);
+            pianoGain.connect(audioContext.destination);
+            
+            pianoOsc.start();
+            pianoOsc.stop(audioContext.currentTime + 0.5);
+        }
+        
+        function createMosquito() {
+            // Calculate mosquito size based on screen dimensions
+            const baseSize = Math.min(canvas.width, canvas.height) / MOSQUITO_SIZE_RATIO;
+            
+            // Randomly choose mosquito type
+            const typeIndex = Math.floor(Math.random() * MOSQUITO_TYPES.length);
+            const type = MOSQUITO_TYPES[typeIndex];
+            
+            // Calculate adjusted size based on type
+            const size = baseSize * type.size;
+            
+            // Create a new mosquito with random position and velocity
+            return {
+                x: Math.random() * (canvas.width - size),
+                y: Math.random() * (canvas.height - size - (canvas.height * DANGER_ZONE_HEIGHT_RATIO)),
+                size: size,
+                speedX: (Math.random() - 0.5) * 5,
+                speedY: (Math.random() - 0.5) * 5,
+                wingOffset: Math.random() * Math.PI, // Random starting point for wing animation
+                type: typeIndex,
+                health: type.health,
+                maxHealth: type.health // Store original health for display
+            };
+        }
+        
+        function gameLoop(timestamp) {
+            // Check if game is over
+            if (gameOver) {
+                document.getElementById('game-over').style.display = 'block';
+                return;
+            }
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw danger zone
+            const dangerZoneHeight = canvas.height * DANGER_ZONE_HEIGHT_RATIO;
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+            ctx.fillRect(0, canvas.height - dangerZoneHeight, canvas.width, dangerZoneHeight);
+            
+            // Create new mosquitoes if needed
+            if (mosquitoes.length < MAX_MOSQUITOES) {
+                mosquitoes.push(createMosquito());
+            }
+            
+            // Update wing animation
+            wingAngle += 0.2 * wingDirection;
+            if (wingAngle > 0.5 || wingAngle < -0.5) {
+                wingDirection *= -1;
+            }
+            
+            // Draw and update mosquitoes
+            for (let i = mosquitoes.length - 1; i >= 0; i--) {
+                const mosquito = mosquitoes[i];
+                
+                // Update position
+                mosquito.x += mosquito.speedX;
+                mosquito.y += mosquito.speedY;
+                
+                // Bounce off walls
+                if (mosquito.x < 0 || mosquito.x > canvas.width - mosquito.size) {
+                    mosquito.speedX *= -1;
+                }
+                if (mosquito.y < 0 || mosquito.y > canvas.height - mosquito.size) {
+                    mosquito.speedY *= -1;
+                }
+                
+                // Check if mosquito is in danger zone
+                if (mosquito.y + mosquito.size > canvas.height - dangerZoneHeight) {
+                    // Decrease life every second while in danger zone
+                    if (timestamp - lastLifeDecreaseTime > 1000) {
+                        lives--;
+                        lastLifeDecreaseTime = timestamp;
+                        playLifeDecreaseSound();
+                        
+                        // Check if game is over
+                        if (lives < 1) {
+                            gameOver = true;
+                        }
+                    }
+                }
+                
+                // Draw mosquito
+                drawMosquito(mosquito, wingAngle + mosquito.wingOffset);
+            }
+            
+            // Draw score and lives
+            drawUI();
+            
+            // Continue game loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function drawMosquito(mosquito, wingAngle) {
+            const { x, y, size, type, health, maxHealth } = mosquito;
+            const s = size * 0.8; // Adjust size for better proportions
+            const typeData = MOSQUITO_TYPES[type];
+            
+            // Save context state
+            ctx.save();
+            ctx.translate(x + s/2, y + s/2);
+            
+            // For bomb mosquito, draw a pulsing glow effect
+            if (typeData.isBomb) {
+                const pulseAmount = Math.sin(Date.now() / 200) * 0.2 + 0.8; // Pulsing effect 
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                ctx.beginPath();
+                ctx.arc(0, 0, s/1.5 * pulseAmount, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Body (elliptical shape)
+            ctx.fillStyle = typeData.color;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, s/3, s/2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // For bomb mosquito, draw bomb pattern
+            if (typeData.isBomb) {
+                // Draw bomb symbol on body
+                ctx.font = `bold ${s/3}px Arial`;
+                ctx.fillStyle = typeData.wingColor;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('💣', 0, 0);
+            }
+            
+            // Wings (animated)
+            ctx.fillStyle = typeData.wingColor;
+            
+            // Left wing
+            ctx.save();
+            ctx.rotate(wingAngle);
+            ctx.beginPath();
+            ctx.ellipse(-s/3, 0, s/3, s/4, Math.PI/4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // Right wing
+            ctx.save();
+            ctx.rotate(-wingAngle);
+            ctx.beginPath();
+            ctx.ellipse(s/3, 0, s/3, s/4, -Math.PI/4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // Proboscis (needle-like structure)
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = s/20;
+            ctx.beginPath();
+            ctx.moveTo(0, -s/2.5);
+            ctx.lineTo(0, -s/1.3);
+            ctx.stroke();
+            
+            // Eyes
+            ctx.fillStyle = '#FF0000'; // Red eyes for bomb mosquito
+            if (!typeData.isBomb) {
+                ctx.fillStyle = '#000';
+            }
+            ctx.beginPath();
+            ctx.arc(-s/6, -s/3, s/12, 0, Math.PI * 2);
+            ctx.arc(s/6, -s/3, s/12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Legs (6 legs, 3 on each side)
+            ctx.strokeStyle = typeData.color;
+            ctx.lineWidth = s/30;
+            
+            // Left legs
+            ctx.beginPath();
+            ctx.moveTo(-s/4, -s/6);
+            ctx.lineTo(-s/2, -s/4);
+            ctx.lineTo(-s/1.5, 0);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(-s/4, 0);
+            ctx.lineTo(-s/2, s/8);
+            ctx.lineTo(-s/1.5, s/4);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(-s/4, s/6);
+            ctx.lineTo(-s/2, s/3);
+            ctx.lineTo(-s/1.5, s/2);
+            ctx.stroke();
+            
+            // Right legs
+            ctx.beginPath();
+            ctx.moveTo(s/4, -s/6);
+            ctx.lineTo(s/2, -s/4);
+            ctx.lineTo(s/1.5, 0);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(s/4, 0);
+            ctx.lineTo(s/2, s/8);
+            ctx.lineTo(s/1.5, s/4);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(s/4, s/6);
+            ctx.lineTo(s/2, s/3);
+            ctx.lineTo(s/1.5, s/2);
+            ctx.stroke();
+            
+            // Display health above mosquito
+            ctx.font = `bold ${s/4}px Arial`;
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = s/30;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            
+            // For bomb mosquito, indicate it's a bomb
+            if (typeData.isBomb) {
+                ctx.fillStyle = 'yellow';
+                ctx.strokeText(`💣 ${health}/${maxHealth}`, 0, -s/1.2);
+                ctx.fillText(`💣 ${health}/${maxHealth}`, 0, -s/1.2);
+            } else {
+                ctx.strokeText(`${health}/${maxHealth}`, 0, -s/1.2);
+                ctx.fillText(`${health}/${maxHealth}`, 0, -s/1.2);
+            }
+            
+            // Restore context state
+            ctx.restore();
+        }
+        
+        function handleClick(event) {
+            if (gameOver) return;
+            
+            // Get click coordinates relative to canvas
+            const rect = canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+            
+            // Check if any mosquito was hit
+            for (let i = mosquitoes.length - 1; i >= 0; i--) {
+                const mosquito = mosquitoes[i];
+                const mosquitoCenter = {
+                    x: mosquito.x + mosquito.size / 2,
+                    y: mosquito.y + mosquito.size / 2
+                };
+                
+                // Check if click is within mosquito's hitbox (much larger hit area for easier mobile play)
+                const distance = Math.sqrt(
+                    Math.pow(clickX - mosquitoCenter.x, 2) +
+                    Math.pow(clickY - mosquitoCenter.y, 2)
+                );
+                
+                if (distance < mosquito.size * 1.5) { // Significantly increased hit area for better touch control
+                    // Reduce mosquito health
+                    mosquito.health--;
+                    playHitSound();
+                    
+                    // Display hit effect ("БАХ!")
+                    createHitEffect(clickX, clickY);
+                    
+                    // Check if mosquito is dead
+                    if (mosquito.health <= 0) {
+                        // Check if this was a bomb mosquito
+                        if (MOSQUITO_TYPES[mosquito.type].isBomb) {
+                            // Create explosion effect
+                            createExplosionEffect(mosquitoCenter.x, mosquitoCenter.y);
+                            
+                            // Damage nearby mosquitoes
+                            explodeNearbyMosquitoes(mosquitoCenter.x, mosquitoCenter.y);
+                        }
+                        
+                        // Remove mosquito and add score
+                        mosquitoes.splice(i, 1);
+                        score++;
+                    }
+                    
+                    break; // Only hit one mosquito at a time
+                }
+            }
+        }
+        
+        function explodeNearbyMosquitoes(x, y) {
+            // Find and damage mosquitoes within BOMB_RADIUS
+            let mosquitoesKilled = 0;
+            
+            for (let i = mosquitoes.length - 1; i >= 0; i--) {
+                const mosquito = mosquitoes[i];
+                const mosquitoCenter = {
+                    x: mosquito.x + mosquito.size / 2,
+                    y: mosquito.y + mosquito.size / 2
+                };
+                
+                // Calculate distance to explosion center
+                const distance = Math.sqrt(
+                    Math.pow(x - mosquitoCenter.x, 2) +
+                    Math.pow(y - mosquitoCenter.y, 2)
+                );
+                
+                // If mosquito is within explosion radius, kill it
+                if (distance < BOMB_RADIUS) {
+                    mosquitoes.splice(i, 1);
+                    mosquitoesKilled++;
+                }
+            }
+            
+            // Add score for killed mosquitoes
+            score += mosquitoesKilled;
+            
+            return mosquitoesKilled;
+        }
+        
+        function createExplosionEffect(x, y) {
+            // Create visual explosion effect
+            const explosionRadius = BOMB_RADIUS;
+            
+            // Draw explosion circle
+            ctx.beginPath();
+            ctx.arc(x, y, explosionRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 165, 0, 0.5)';
+            ctx.fill();
+            
+            // Animate explosion
+            let opacity = 0.5;
+            let radius = explosionRadius;
+            
+            const animateExplosion = () => {
+                opacity -= 0.05;
+                radius += 5;
+                
+                if (opacity > 0) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 165, 0, ${opacity})`;
+                    ctx.fill();
+                    requestAnimationFrame(animateExplosion);
+                }
+            };
+            
+            // Play explosion sound
+            const explosionOsc = audioContext.createOscillator();
+            explosionOsc.type = 'sawtooth';
+            explosionOsc.frequency.setValueAtTime(60, audioContext.currentTime);
+            
+            const explosionGain = audioContext.createGain();
+            explosionGain.gain.setValueAtTime(0.5, audioContext.currentTime);
+            explosionGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1.0);
+            
+            explosionOsc.connect(explosionGain);
+            explosionGain.connect(audioContext.destination);
+            
+            explosionOsc.start();
+            explosionOsc.stop(audioContext.currentTime + 1.0);
+            
+            requestAnimationFrame(animateExplosion);
+        }
+        
+        function createHitEffect(x, y) {
+            // Create "БАХ!" text effect
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.fillText('БАХ!', x, y);
+            
+            // Add simple animation for the text effect
+            let opacity = 1;
+            let size = 24;
+            
+            const animateHitEffect = () => {
+                opacity -= 0.05;
+                size += 1;
+                
+                if (opacity > 0) {
+                    ctx.font = `bold ${size}px Arial`;
+                    ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`;
+                    ctx.fillText('БАХ!', x, y);
+                    requestAnimationFrame(animateHitEffect);
+                }
+            };
+            
+            requestAnimationFrame(animateHitEffect);
+        }
+        
+        function drawUI() {
+            // Set text styles
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#000';
+            
+            // Draw score
+            ctx.fillText(`Очки: ${score}`, 20, 40);
+            
+            // Draw lives with color based on amount
+            if (lives > 80) {
+                ctx.fillStyle = 'green';
+            } else if (lives > 40) {
+                ctx.fillStyle = 'yellow';
+            } else {
+                ctx.fillStyle = 'red';
+            }
+            
+            ctx.fillText(`Жизни: ${lives}`, 20, 80);
+        }
+    </script>
+</body>
+</html>
