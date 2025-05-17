@@ -185,6 +185,22 @@
             Правила
         </button>
 
+   <script>
+bridge.send('VKWebAppInit')
+  .then((data) => { 
+    if (data.result) {
+      // Приложение инициализировано
+    } else {
+      // Ошибка
+    }
+  })
+  .catch((error) => {
+    // Ошибка
+    console.log(error);
+  });
+        
+   </script>
+        
         <script>
             // Constants
             const MAX_MOSQUITOES = 15;
