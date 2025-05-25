@@ -106,9 +106,12 @@
     // Вариант 1: Простой вывод массива чисел (десятичный формат)
     console.log('Raw bytes (decimal):', Array.from(bytes));
         //Отладка end    
+            console.log(bytes[2]*255 + bytes[1], ' - ' ,bytes[4]*255 + bytes[3]);
             
             if (flags & 0x02) {
+                
                 const crankRevolutions = value.getUint16(3, true);
+                console.log(crankRevolutions);
                 const crankTime = value.getUint16(5, true);
                 
                 // Расчет каденса
