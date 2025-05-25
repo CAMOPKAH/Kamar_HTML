@@ -97,6 +97,15 @@
         function handleCadenceData(event) {
             const value = event.target.value;
             const flags = value.getUint8(0);
+
+//Отладка
+    // Получаем бинарные данные
+    const buffer = value.buffer;
+    const bytes = new Uint8Array(buffer);
+    
+    // Вариант 1: Простой вывод массива чисел (десятичный формат)
+    console.log('Raw bytes (decimal):', Array.from(bytes));
+        //Отладка end    
             
             if (flags & 0x02) {
                 const crankRevolutions = value.getUint16(3, true);
