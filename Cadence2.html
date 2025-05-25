@@ -103,8 +103,8 @@
             
             if (flags & 0x02) {
                 // Восстановлен оригинальный расчет
-                const crankRevolutions = bytes[2] * 255 + bytes[1];
-                const crankTime = bytes[4] * 255 + bytes[3];
+                const crankRevolutions = bytes[2] * 256 + bytes[1];
+                const crankTime = bytes[4] * 256 + bytes[3];
                 
                 // Расчет каденса
                 const timeDiff = (crankTime - deviceData.lastCrankTime) / 1024;
@@ -122,9 +122,10 @@
         function startPeriodicUpdate() {
             updateInterval = setInterval(() => {
                 // Плавное снижение RPM при отсутствии данных
-                if (deviceData.lastUpdate !== null && Date.now() - deviceData.lastUpdate > 3000) {
+                if (deviceData.lastUpdate !== null && Date.now() - deviceData.lastUpdate > 1000) {
                     deviceData.cadence = Math.max(deviceData.cadence * 0.8, 0);
                     deviceData.cadence = Math.round(deviceData.cadence);
+                    if (deviceData.cadence < 4) { deviceData.cadence = 0; }
                 }
 
                 liveData.innerHTML = `
