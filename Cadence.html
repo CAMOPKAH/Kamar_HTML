@@ -1,82 +1,151 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Cadence Sensor Reader</title>
+    <title>Cadence Sensor Monitor</title>
+    <style>
+        #deviceInfo { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .data-field { margin: 5px 0; }
+    </style>
 </head>
 <body>
-    <button id="connectButton">Подключиться к датчику</button>
-    <div id="cadenceData">Каденс: 0 об/мин</div>
+    <button id="connectButton">Подключиться к устройству</button>
+    <div id="deviceInfo"></div>
+    <div id="liveData"></div>
 
     <script>
         const connectButton = document.getElementById('connectButton');
-        const cadenceDisplay = document.getElementById('cadenceData');
+        const deviceInfo = document.getElementById('deviceInfo');
+        const liveData = document.getElementById('liveData');
         
-        // UUID сервиса и характеристик
+        let device = null;
+        let server = null;
+        let service = null;
+        let characteristic = null;
+        let updateInterval = null;
+        
+        // UUID сервисов и характеристик
         const CSC_SERVICE_UUID = 0x1816;
         const CSC_MEASUREMENT_UUID = 0x2A5B;
-        
-        // Переменные для хранения предыдущих значений
-        let lastCrankTime = 0;
-        let lastCrankRevolutions = 0;
+        const BATTERY_SERVICE_UUID = 0x180F;
+        const BATTERY_LEVEL_UUID = 0x2A19;
 
-        connectButton.addEventListener('click', async () => {
+        // Данные устройства
+        const deviceData = {
+            cadence: 0,
+            battery: 'N/A',
+            lastUpdate: null,
+            deviceName: '',
+            services: [],
+            characteristics: []
+        };
+
+        async function connectToDevice() {
             try {
-                // Запрос подключения к устройству
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: [CSC_SERVICE_UUID] }]
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [CSC_SERVICE_UUID] }],
+                    optionalServices: [BATTERY_SERVICE_UUID]
                 });
                 
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService(CSC_SERVICE_UUID);
-                const characteristic = await service.getCharacteristic(CSC_MEASUREMENT_UUID);
+                deviceInfo.innerHTML = `<div class="data-field">Устройство: ${device.name}</div>`;
+                deviceData.deviceName = device.name;
+                
+                server = await device.gatt.connect();
+                await updateDeviceInfo();
+                
+                // Получаем основные сервисы
+                service = await server.getPrimaryService(CSC_SERVICE_UUID);
+                characteristic = await service.getCharacteristic(CSC_MEASUREMENT_UUID);
                 
                 // Подписка на уведомления
                 await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', handleCadenceData);
                 
-                // Обработка поступающих данных
-                characteristic.addEventListener('characteristicvaluechanged', event => {
-                    const value = event.target.value;
-                    const flags = value.getUint8(0);
-                    
-                    // Проверяем наличие данных о каденсе
-                    if (flags & 0x02) {
-                        const crankRevolutions = value.getUint16(3, true);
-                        const crankTime = value.getUint16(5, true);
-                        
-                        // Рассчет каденса
-                        if (lastCrankTime !== 0) {
-                            const timeDiff = (crankTime - lastCrankTime) / 1024; // в секундах
-                            const revolutionDiff = crankRevolutions - lastCrankRevolutions;
-                            
-                            if (timeDiff > 0) {
-                                const cadence = Math.round((revolutionDiff / timeDiff) * 60);
-                                cadenceDisplay.textContent = `Каденс: ${cadence} об/мин`;
-                            }
-                        }
-                        
-                        // Сохраняем текущие значения
-                        lastCrankTime = crankTime;
-                        lastCrankRevolutions = crankRevolutions;
-                    }
-                });
-                
-                // Обработка отключения
-                device.addEventListener('gattserverdisconnected', onDisconnected);
-                
+                // Запускаем обновление данных
+                startPeriodicUpdate();
                 connectButton.textContent = "Подключено";
-                
+                connectButton.disabled = true;
+
             } catch (error) {
                 console.error('Ошибка:', error);
                 alert(`Ошибка подключения: ${error}`);
             }
-        });
-
-        function onDisconnected() {
-            connectButton.textContent = "Подключиться к датчику";
-            cadenceDisplay.textContent = "Каденс: 0 об/мин";
-            lastCrankTime = 0;
-            lastCrankRevolutions = 0;
         }
+
+        async function updateDeviceInfo() {
+            // Получаем информацию о сервисах
+            const services = await server.getPrimaryServices();
+            deviceData.services = services.map(s => s.uuid);
+            
+            // Получаем уровень заряда батареи
+            try {
+                const batteryService = await server.getPrimaryService(BATTERY_SERVICE_UUID);
+                const batteryChar = await batteryService.getCharacteristic(BATTERY_LEVEL_UUID);
+                const batteryValue = await batteryChar.readValue();
+                deviceData.battery = batteryValue.getUint8(0) + '%';
+            } catch {
+                deviceData.battery = 'Недоступно';
+            }
+            
+            // Обновляем информацию об устройстве
+            deviceInfo.innerHTML = `
+                <div class="data-field">Имя устройства: ${deviceData.deviceName}</div>
+                <div class="data-field">Уровень заряда: ${deviceData.battery}</div>
+                <div class="data-field">Сервисы: ${deviceData.services.join(', ')}</div>
+            `;
+        }
+
+        function handleCadenceData(event) {
+            const value = event.target.value;
+            const flags = value.getUint8(0);
+            
+            if (flags & 0x02) {
+                const crankRevolutions = value.getUint16(3, true);
+                const crankTime = value.getUint16(5, true);
+                
+                // Расчет каденса
+                const timeDiff = (crankTime - deviceData.lastCrankTime) / 1024;
+                if (deviceData.lastCrankTime && timeDiff > 0) {
+                    const revolutionDiff = crankRevolutions - deviceData.lastCrankRevolutions;
+                    deviceData.cadence = Math.round((revolutionDiff / timeDiff) * 60);
+                }
+                
+                deviceData.lastCrankTime = crankTime;
+                deviceData.lastCrankRevolutions = crankRevolutions;
+            }
+            deviceData.lastUpdate = new Date().toLocaleTimeString();
+        }
+
+        function startPeriodicUpdate() {
+            updateInterval = setInterval(() => {
+                liveData.innerHTML = `
+                    <div class="data-field">Каденс: ${deviceData.cadence} об/мин</div>
+                    <div class="data-field">Последнее обновление: ${deviceData.lastUpdate || 'Нет данных'}</div>
+                    <div class="data-field">Статус: ${server.connected ? 'Подключено' : 'Отключено'}</div>
+                `;
+                
+                // Автоматическое обновление информации об устройстве каждые 10 сек
+                if (Date.now() % 10000 === 0) {
+                    updateDeviceInfo();
+                }
+                
+                // Проверка подключения
+                if (!server.connected) {
+                    clearInterval(updateInterval);
+                    connectButton.disabled = false;
+                    connectButton.textContent = "Подключиться к устройству";
+                }
+            }, 1000);
+        }
+
+        connectButton.addEventListener('click', connectToDevice);
+
+        // Обработка отключения
+        device?.addEventListener('gattserverdisconnected', () => {
+            clearInterval(updateInterval);
+            connectButton.disabled = false;
+            connectButton.textContent = "Подключиться к устройству";
+            liveData.innerHTML = '';
+        });
     </script>
 </body>
 </html>
