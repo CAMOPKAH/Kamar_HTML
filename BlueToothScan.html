@@ -32,7 +32,7 @@
     </style>
 </head>
 <body>
- <h2>Bluetooth Devices Scanner</h2>
+    <h2>Bluetooth Devices Scanner</h2>
     <button onclick="startScan()" id="startBtn">Start Scanning</button>
     <button onclick="stopScan()" id="stopBtn" disabled>Stop Scanning</button>
     <div id="deviceList"></div>
@@ -43,7 +43,7 @@
         let foundDeviceIds = new Set();
         let scanner = null;
 
-        // Добавляем обработчики для разных событий закрытия
+        // Обработчики событий закрытия страницы
         window.addEventListener('beforeunload', handleUnload);
         window.addEventListener('unload', handleUnload);
         window.addEventListener('pagehide', handleUnload);
@@ -51,13 +51,13 @@
         function handleUnload() {
             if (isScanning) {
                 stopScan();
-                console.log('Сканирование остановлено при закрытии страницы');
+                console.log('Scanning stopped due to page closure');
             }
         }
 
         async function startScan() {
             if (!navigator.bluetooth) {
-                alert("Bluetooth API не поддерживается в вашем браузере!");
+                alert("Bluetooth API is not supported in your browser!");
                 return;
             }
 
@@ -78,7 +78,7 @@
                         foundDeviceIds.add(event.device.id);
                         devices.push({
                             id: event.device.id,
-                            name: event.device.name,
+                            name: event.device.name || 'Unknown Device',
                             rssi: event.rssi
                         });
                         updateDeviceList();
@@ -86,7 +86,7 @@
                 });
 
             } catch (error) {
-                console.error("Ошибка сканирования:", error);
+                console.error("Scanning error:", error);
                 stopScan();
             }
         }
@@ -102,7 +102,19 @@
         }
 
         function updateDeviceList() {
-            // ... предыдущая реализация без изменений ...
+            const listDiv = document.getElementById('deviceList');
+            listDiv.innerHTML = '<h3>Found devices: ' + devices.length + '</h3>';
+            
+            devices.forEach(device => {
+                const div = document.createElement('div');
+                div.className = 'device-item';
+                div.innerHTML = `
+                    <strong>${device.name}</strong><br>
+                    ID: ${device.id}<br>
+                    RSSI: ${device.rssi}
+                `;
+                listDiv.appendChild(div);
+            });
         }
     </script>
 </body>
