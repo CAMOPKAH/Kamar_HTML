@@ -44,7 +44,8 @@
             services: [],
             characteristics: [],
             lastCrankTime: null,
-            lastCrankRevolutions: null
+            lastCrankRevolutions: null,
+            lastNewCrankTime: null         //Последнее новое значение счётчика.
         };
 
         // Инициализация при загрузке страницы
@@ -122,10 +123,16 @@
                     const revolutionDiff = crankRevolutions - deviceData.lastCrankRevolutions;
                     deviceData.cadence = Math.round((revolutionDiff / timeDiff) * 60);
                 }
+
+            if ((deviceData.lastCrankTime!=crankTime) && (deviceData.lastCrankRevolutions != crankRevolutions)) {
+                   deviceData.lastNewCrankTime = Date.now();
+                }
                 
                 deviceData.lastCrankTime = crankTime;
                 deviceData.lastCrankRevolutions = crankRevolutions;
                 deviceData.lastUpdate = Date.now();
+                
+                
             }
         }
 
@@ -139,6 +146,9 @@
 
                 liveData.innerHTML = `
                     <div class="data-field">Каденс: ${deviceData.cadence} об/мин</div>
+                    <div class="data-field">Новые данные: ${deviceData.lastNewCrankTime} </div>
+                    
+                    
                     <div class="data-field">Последнее обновление: ${
                         deviceData.lastUpdate ? 
                         new Date(deviceData.lastUpdate).toLocaleTimeString() : 
