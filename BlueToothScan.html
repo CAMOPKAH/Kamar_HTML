@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bluetooth Scanner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #deviceList {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        .device-item {
+            padding: 5px;
+            margin: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        button {
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+ <h2>Bluetooth Devices Scanner</h2>
+    <button onclick="startScan()" id="startBtn">Start Scanning</button>
+    <button onclick="stopScan()" id="stopBtn" disabled>Stop Scanning</button>
+    <div id="deviceList"></div>
+
+    <script>
+        let isScanning = false;
+        let devices = [];
+        let foundDeviceIds = new Set();
+        let scanner = null;
+
+        // Добавляем обработчики для разных событий закрытия
+        window.addEventListener('beforeunload', handleUnload);
+        window.addEventListener('unload', handleUnload);
+        window.addEventListener('pagehide', handleUnload);
+
+        function handleUnload() {
+            if (isScanning) {
+                stopScan();
+                console.log('Сканирование остановлено при закрытии страницы');
+            }
+        }
+
+        async function startScan() {
+            if (!navigator.bluetooth) {
+                alert("Bluetooth API не поддерживается в вашем браузере!");
+                return;
+            }
+
+            try {
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                isScanning = true;
+                devices = [];
+                foundDeviceIds.clear();
+                updateDeviceList();
+
+                scanner = await navigator.bluetooth.requestLEScan({
+                    acceptAllAdvertisements: true
+                });
+
+                navigator.bluetooth.addEventListener('advertisementreceived', event => {
+                    if (!foundDeviceIds.has(event.device.id)) {
+                        foundDeviceIds.add(event.device.id);
+                        devices.push({
+                            id: event.device.id,
+                            name: event.device.name,
+                            rssi: event.rssi
+                        });
+                        updateDeviceList();
+                    }
+                });
+
+            } catch (error) {
+                console.error("Ошибка сканирования:", error);
+                stopScan();
+            }
+        }
+
+        function stopScan() {
+            if (scanner && scanner.active) {
+                scanner.stop();
+                scanner = null;
+            }
+            isScanning = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        function updateDeviceList() {
+            // ... предыдущая реализация без изменений ...
+        }
+    </script>
+</body>
+</html>
