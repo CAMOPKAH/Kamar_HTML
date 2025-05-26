@@ -142,6 +142,7 @@
                 if (deviceData.lastNewCrankTime && Date.now() - deviceData.lastNewCrankTime > 3000) {
                     deviceData.cadence = Math.max(deviceData.cadence * 0.8, 0);
                     deviceData.cadence = Math.round(deviceData.cadence);
+                    if (deviceData.cadence < 5) { deviceData.cadence = 0; }
                 }
 
                 liveData.innerHTML = `
