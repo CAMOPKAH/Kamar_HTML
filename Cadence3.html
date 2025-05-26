@@ -139,7 +139,7 @@
         function startPeriodicUpdate() {
             updateInterval = setInterval(() => {
                 // Плавное снижение RPM при отсутствии данных
-                if (deviceData.lastUpdate && Date.now() - deviceData.lastUpdate > 3000) {
+                if (deviceData.lastNewCrankTime && Date.now() - deviceData.lastNewCrankTime > 3000) {
                     deviceData.cadence = Math.max(deviceData.cadence * 0.8, 0);
                     deviceData.cadence = Math.round(deviceData.cadence);
                 }
