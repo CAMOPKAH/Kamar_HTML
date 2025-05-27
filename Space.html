@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Translated C Code</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+<canvas id="display" width="400" height="400"></canvas>
+<script>
+const ctx = document.getElementById('display').getContext('2d');
+let L, o, P, _ = 0.01, T, Z, D = 1, d = 0.01, s = new Array(999).fill(0), E = 0, h = 8, I, J, K, w = new Array(999).fill(0), M = 0, m, O = 0, n = new Array(999).fill(0), j = 0.033, i = 1000, r, t, u = 0, v = 0, W, S = 74.5, l = 221, X = 7.26, a, B, A = 32.2, c = 0, F = 0, H = 0;
+let N, q, C, y = 0, p, U;
+let f = new Array(52).fill(' '), GC, mainLoop;
+
+// Инициализация (аналог main())
+function main() {
+    // Обработка ввода (заменяет scanf)
+    // Для простоты используем массивы с тестовыми данными
+    for (let y = 0; y < 5; y++) {
+        n[y] = Math.random() * 100;
+        w[y] = Math.random() * 100;
+        s[y] = Math.random() * 100;
+    }
+    
+    // Настройка canvas
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 400, 400);
+    
+    // Основной цикл
+    mainLoop = requestAnimationFrame(update);
+}
+
+function update() {
+    _ += 0.01; // Увеличиваем dt
+    K = Math.cos(j);
+    N = 1e4;
+    M += H * _;
+    Z = D * K;
+    F += _ * P;
+    r = E * K;
+    W = Math.cos(O);
+    m = K * W;
+    H = K * Math.sin(O);
+    O += D * _ * F / K + d / K * E * _;
+    B = Math.sin(j);
+    a = B * Math.sin(O) * D - E * W;
+    ctx.clearRect(0, 0, 400, 400);
+    t = Math.sin(O) * E + D * B * W;
+    j += d * _ * D - _ * F * E;
+    P = W * E * B - Math.sin(O) * D;
+    
+    // Отрисовка (аналог XDrawLine)
+    for (p = 0; p < y; p++) {
+        let W_val = (p in s) ? s[p] + i : 0;
+        let E_val = c - (p in w ? w[p] : 0);
+        let D_val = n[p] - L;
+        K = D_val * m - B * W_val - H * E_val;
+        if (!(p in n) || !(p in w) || !(p in s) || K < Math.abs(W_val = T * r - I * E_val + D_val * P) || Math.abs(D_val = t * D_val + Z * T - a * E_val) > K) {
+            N = 1e4;
+        } else {
+            q = W_val / K * 4e2 + 2e2;
+            C = 2e2 + 4e2 / K * D_val;
+            if (N != 1e4) {
+                ctx.beginPath();
+                ctx.moveTo(N, U);
+                ctx.lineTo(q, C);
+                ctx.stroke();
+            }
+            N = q;
+            U = C;
+        }
+    }
+    
+    L += _ * (X * t + P * M + m * l);
+    T = X * X + l * l + M * M;
+    ctx.font = '16px Arial';
+    ctx.fillStyle = 'black';
+    ctx.fillText(f.join(''), 20, 380);
+    D = v / l * 15;
+    i += (B * l - M * r - X * Z) * _;
+    
+    // Обработка событий клавиатуры
+    document.addEventListener('keydown', (e) => {
+        switch(e.keyCode) {
+            case 38: // Стрелка вверх
+                u++;
+                break;
+            case 40: // Стрелка вниз
+                u--;
+                break;
+            case 37: // Стрелка влево
+                v--;
+                break;
+            case 39: // Стрелка вправо
+                v++;
+                break;
+            // ... (добавьте другие клавиши по необходимости)
+        }
+    });
+    
+    m = 15 * F / l;
+    c += (I = M / l, l * H + I * M + a * X) * _;
+    H = A * r + v * X - F * l + (E = 0.1 + X * 4.9 / l, t = T * m / 32 - I * T / 24) / S;
+    K = F * M + (h * 1e4 / l - (T + E * 5 * T * E) / 3e2) / S - X * d - B * A;
+    a = 2.63 / l * d;
+    X += (d * l - T / S * (.19 * E + a * .64 + J / 1e3) - M * v + A * Z) * _;
+    l += K * _;
+    W = d;
+    f = `${p = Math.floor(l / 1.7)} ${(C = Math.floor((9e3 + O * 57.3) % 550))} ${Math.floor(i)}`.split('');
+    d += T * (.45 - 14 / l * X - a * 130 - J * .14) / 125e2 + F * _ * v;
+    P = (T * (47 * I - m * 52 + E * 94 * D - t * .38 + u * .21 * E) / 1e2 + W * 179 * v) / 2312;
+    
+    requestAnimationFrame(update);
+}
+
+// Запуск
+main();
+</script>
+</body>
+</html>
